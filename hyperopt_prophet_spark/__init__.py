@@ -1,4 +1,4 @@
-from databricks_session.databricks_session import *
+from hyperopt_prophet_spark.hyperopt_prophet_spark import *
 
 __all__ = list(globals().keys())
 

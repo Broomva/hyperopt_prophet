@@ -1,16 +1,16 @@
-from pydantic import BaseSettings
-from typing import Optional
 import os
-from pydantic import validator
-from databricks import sql as adb_sql
-import os
-import pandas as pd
 import re
+from typing import Optional
+
 import mlflow
+import pandas as pd
+from databricks import sql as adb_sql
+from pydantic import BaseSettings, validator
+
 
 
 def init():
-    print("Databricks Session Utility Installed")
+    print("Hyperopt Prophet Pyspark Utility Installed")
 
 
 class SparkSession(BaseSettings):
@@ -46,12 +46,12 @@ class DatabricksJDBCSession(SparkSession):
     spark: Optional[object] = None
 
     def get_session(self):
-        # create a local spark session and load the databricks_session/jars/DatabricksJDBC42.jar
+        # create a local spark session and load the hyperopt_prophet_spark/jars/DatabricksJDBC42.jar
         from pyspark.sql import SparkSession
 
         self.spark = (
             SparkSession.builder.appName("Databricks JDBC Session")
-            .config("spark.jars", "databricks_session/jars/DatabricksJDBC42.jar")
+            .config("spark.jars", "hyperopt_prophet_spark/jars/DatabricksJDBC42.jar")
             .getOrCreate()
         )
         return self.spark
@@ -91,9 +91,9 @@ class DatabricksSQLSession(SparkSession):
         return self.engine
 
     def read(self, engine, table):
+        import pandas as pd
         from sqlalchemy import MetaData, Table, select
         from sqlalchemy.orm import sessionmaker
-        import pandas as pd
 
         # create a Table object
         metadata = MetaData(bind=engine)

@@ -1,7 +1,7 @@
 # %%
 
 # %%
-from databricks_session import DatabricksSQLSession
+from hyperopt_prophet_spark import DatabricksSQLSession
 
 # %%
 spark_sql = DatabricksSQLSession()
@@ -14,7 +14,7 @@ sqlalchemy_engine = spark_sql.get_session()
 df = spark_sql.read(sqlalchemy_engine, "microchip_logs")
 
 # %%
-from databricks_session import DatabricksJDBCSession
+from hyperopt_prophet_spark import DatabricksJDBCSession
 
 # %%
 spark_jdbc = DatabricksJDBCSession().get_session()
@@ -22,7 +22,7 @@ spark_jdbc = DatabricksJDBCSession().get_session()
 
 # %%
 
-from databricks_session import DatabricksSparkSession
+from hyperopt_prophet_spark import DatabricksSparkSession
 
 # %%
 spark = DatabricksSparkSession().get_session()
@@ -32,7 +32,7 @@ sdf = spark.read.table("microchip_logs")
 print(sdf.show())
 # %%
 
-from databricks_session import DatabricksMLFlowSession
+from hyperopt_prophet_spark import DatabricksMLFlowSession
 
 # %%
 mlflow_session = DatabricksMLFlowSession().get_session()

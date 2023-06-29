@@ -1,4 +1,4 @@
-# Databricks Session Util
+# Hyperopt Prophet Pyspark Util
 **A simple utility for spark and mlflow session objects**
 
 
@@ -7,7 +7,7 @@
 ### Quick Install
 
 ```shell
-python -m pip install databricks_session
+python -m pip install hyperopt_prophet_spark
 ```
 
 ### Build from source
@@ -15,13 +15,13 @@ python -m pip install databricks_session
 Clone the repository
 
 ```shell
-git clone https://github.com/Broomva/databricks_session.git
+git clone https://github.com/Broomva/hyperopt_prophet_spark.git
 ```
 
 Install the package
 
 ``` shell
-cd databricks_session && make install
+cd hyperopt_prophet_spark && make install
 ```
 
 ### Build manually
@@ -29,8 +29,8 @@ cd databricks_session && make install
 After cloning, create a virtual environment
 
 ```shell
-conda create -n databricks_session python=3.10
-conda activate databricks_session
+conda create -n hyperopt_prophet_spark python=3.10
+conda activate hyperopt_prophet_spark
 ```
 
 Install the requirements
@@ -66,7 +66,7 @@ databricks_cluster_id=''
 ```
 
 ```python
-import databricks_session 
+import hyperopt_prophet_spark 
 
 # Create a Spark session
 spark = DatabricksSparkSession().get_session()
