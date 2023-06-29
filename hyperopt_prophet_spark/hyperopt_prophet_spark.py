@@ -8,7 +8,6 @@ from databricks import sql as adb_sql
 from pydantic import BaseSettings, validator
 
 
-
 def init():
     print("Hyperopt Prophet Pyspark Utility Installed")
 
