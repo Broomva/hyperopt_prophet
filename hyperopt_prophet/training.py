@@ -8,13 +8,17 @@ from time import time
 
 import mlflow
 import mlflow.prophet
+
 # import mlflow.spark
 import pandas as pd
 from dotenv import load_dotenv
 from hyperopt import hp
 from mlflowops import MLFlowOps
-from model import (MultiSeriesProphetModel, ProphetHyperoptEstimator,
-                   mlflow_prophet_log_model)
+from model import (
+    MultiSeriesProphetModel,
+    ProphetHyperoptEstimator,
+    mlflow_prophet_log_model,
+)
 from pydantic import BaseModel
 from utils import get_plotly_forecast, plotly_fig2pil
 
