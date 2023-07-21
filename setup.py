@@ -6,10 +6,10 @@ import sys
 import setuptools
 from setuptools import find_namespace_packages, find_packages
 
-if sys.version_info < (3, 8):
+if sys.version_info < (3, 9):
     find_namespace_packages()
-    print("Error: hyperopt_prophet_spark does not support this version of Python.")
-    print("Please upgrade to Python 3.8 or higher.")
+    print("Error: hyperopt_prophet does not support this version of Python.")
+    print("Please upgrade to Python 3.9 or higher.")
     sys.exit(1)
 
 
@@ -22,16 +22,16 @@ def prepare_data_files(directory, extensions):
 
 data_files_structure = [
     (
-        "hyperopt_prophet_spark",
+        "hyperopt_prophet",
         prepare_data_files(
-            "hyperopt_prophet_spark",
+            "hyperopt_prophet",
             ["csv", "sql", "txt", "md", "html", "css", "json", "yaml", "faiss", "pkl"],
         ),
     ),
 ]
 
 # Package metadata.
-name = "hyperopt_prophet_spark"
+name = "hyperopt_prophet"
 description = (
     "A simple util to get a spark and mlflow session objects from an .env file"
 )
@@ -88,9 +88,9 @@ setuptools.setup(
     tests_require=["pytest"],
     test_suite="tests",
     zip_safe=False,
-    url="https://github.com/Broomva/hyperopt_prophet_spark",
+    url="https://github.com/Broomva/hyperopt_prophet",
     package_data={
-        "hyperopt_prophet_spark": [
+        "hyperopt_prophet": [
             "*.json",
             "*.yaml",
             "*.sql",
@@ -107,7 +107,7 @@ setuptools.setup(
     py_modules=["main"],
     entry_points={
         "console_scripts": [
-            "hyperopt_prophet_spark=main:main",
+            "hyperopt_prophet=main:main",
         ],
     },
 )

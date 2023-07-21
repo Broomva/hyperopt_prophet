@@ -1,5 +1,5 @@
-# Hyperopt Prophet Pyspark Util
-**A simple utility for spark and mlflow session objects**
+# Hyperopt Prophet
+**Integration of prophet forecasting with hyperopt, mlflow**
 
 
 ## Setup
@@ -7,7 +7,7 @@
 ### Quick Install
 
 ```shell
-python -m pip install hyperopt_prophet_spark
+python -m pip install hyperopt_prophet
 ```
 
 ### Build from source
@@ -15,13 +15,13 @@ python -m pip install hyperopt_prophet_spark
 Clone the repository
 
 ```shell
-git clone https://github.com/Broomva/hyperopt_prophet_spark.git
+git clone https://github.com/Broomva/hyperopt_prophet.git
 ```
 
 Install the package
 
 ``` shell
-cd hyperopt_prophet_spark && make install
+cd hyperopt_prophet && make install
 ```
 
 ### Build manually
@@ -29,8 +29,8 @@ cd hyperopt_prophet_spark && make install
 After cloning, create a virtual environment
 
 ```shell
-conda create -n hyperopt_prophet_spark python=3.10
-conda activate hyperopt_prophet_spark
+conda create -n hyperopt_prophet python=3.9
+conda activate hyperopt_prophet
 ```
 
 Install the requirements
@@ -47,30 +47,12 @@ python setup.py install
 
 ## Usage
 
-The deployment requires a .env file created under local folder:
-
-```shell
-touch .env
-```
-
-It should have a schema like this:
-
-```toml
-databricks_experiment_name=''
-databricks_experiment_id=''
-databricks_host=''
-databricks_token=''
-databricks_username=''
-databricks_password=''
-databricks_cluster_id=''
-```
-
 ```python
-import hyperopt_prophet_spark 
-
-# Create a Spark session
-spark = DatabricksSparkSession().get_session()
-
-# Connect to MLFLow Artifact Server
-mlflow_session = DatabricksMLFlowSession().get_session()
+import hyperopt_prophet 
 ```
+
+## Attribution
+
+Hyperopt Prophet builds upon the hard work of others. Here are the original leveraged repositories:
+
+- [Databricks AutoML](https://github.com/databricks/automl)

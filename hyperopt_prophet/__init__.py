@@ -1,4 +1,4 @@
-from hyperopt_prophet_spark.hyperopt_prophet_spark import *
+from hyperopt_prophet.hyperopt_prophet import *
 
 __all__ = list(globals().keys())
 
