@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.0 (2023-07-21)
+
+
+### Features
+
+* added core modules for hyperopt-prophet ([29e208f](https://github.com/Broomva/hyperopt_prophet/commit/29e208f2c0bd7117506d5a9480058a09f09dbfc5))
+
+
+### Bug Fixes
+
+* **init:** created initial commit ([187ab54](https://github.com/Broomva/hyperopt_prophet/commit/187ab54ddcb0bce51351e58335e236a4bcd086a7))
+
 ## [0.2.3](https://github.com/Broomva/hyperopt_prophet/compare/v0.2.2...v0.2.3) (2023-06-29)
 
 
