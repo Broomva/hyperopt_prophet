@@ -1,6 +1,7 @@
 # Hyperopt Prophet
-**Integration of prophet forecasting with hyperopt, mlflow**
 
+**Integration of prophet forecasting with hyperopt, mlflow**
+This implementation is based on the [Databricks AutoML](https://github.com/databricks/automl) repository.
 
 ## Setup
 
