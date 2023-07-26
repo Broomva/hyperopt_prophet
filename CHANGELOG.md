@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/Broomva/hyperopt_prophet/compare/v0.1.3...v0.1.4) (2023-07-26)
+
+
+### Bug Fixes
+
+* fixed init ([84f111d](https://github.com/Broomva/hyperopt_prophet/commit/84f111da82321656c3b10676c2454c10bda2aa61))
+
 ## [0.1.3](https://github.com/Broomva/hyperopt_prophet/compare/v0.1.2...v0.1.3) (2023-07-26)
 
 
