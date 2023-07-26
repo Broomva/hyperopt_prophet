@@ -1,24 +1,18 @@
 import json
-import os
 import random
 import warnings
 from builtins import max
-from pathlib import Path
 from time import time
 
 import mlflow
 import mlflow.prophet
-
 import pandas as pd
 from hyperopt import hp
 from mlflowops import MLFlowOps
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from .model import (
-    MultiSeriesProphetModel,
-    ProphetHyperoptEstimator,
-    mlflow_prophet_log_model,
-)
+from .model import (MultiSeriesProphetModel, ProphetHyperoptEstimator,
+                    mlflow_prophet_log_model)
 from .utils import get_plotly_forecast, plotly_fig2pil
 
 warnings.filterwarnings("ignore")
