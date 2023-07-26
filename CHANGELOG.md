@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.3](https://github.com/Broomva/hyperopt_prophet/compare/v0.1.2...v0.1.3) (2023-07-26)
+
+
+### Bug Fixes
+
+* added plot to example ([4a6f9e3](https://github.com/Broomva/hyperopt_prophet/commit/4a6f9e30b4c60399449dd65a636e69fa35747495))
+* corrected training definition using pydantic-settings ([0baa312](https://github.com/Broomva/hyperopt_prophet/commit/0baa31240e930b1ebba2641b92fc3155dce4ac67))
+* tested training ([5781254](https://github.com/Broomva/hyperopt_prophet/commit/5781254838a70bbce161e5c462814e72d3f91020))
+
 ## [0.1.2](https://github.com/Broomva/hyperopt_prophet/compare/v0.1.1...v0.1.2) (2023-07-26)
 
 
