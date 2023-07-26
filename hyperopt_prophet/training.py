@@ -8,6 +8,7 @@ from time import time
 
 import mlflow
 import mlflow.prophet
+
 # import mlflow.spark
 import pandas as pd
 from dotenv import load_dotenv
@@ -15,8 +16,11 @@ from hyperopt import hp
 from mlflowops import MLFlowOps
 from pydantic import BaseModel
 
-from .model import (MultiSeriesProphetModel, ProphetHyperoptEstimator,
-                    mlflow_prophet_log_model)
+from .model import (
+    MultiSeriesProphetModel,
+    ProphetHyperoptEstimator,
+    mlflow_prophet_log_model,
+)
 from .utils import get_plotly_forecast, plotly_fig2pil
 
 warnings.filterwarnings("ignore")
@@ -139,21 +143,21 @@ class ProphetHyperOptTrainer:
 
     def training(self):
         hyperopt_estim = ProphetHyperoptEstimator(
-                    horizon=self.training_params.horizon,
-                    frequency_unit=self.training_params.unit,
-                    metric=self.training_params.loss_metric,
-                    interval_width=self.training_params.interval_width,  # type: ignore
-                    country_holidays=self.training_params.country_holidays,
-                    search_space=self.training_params.search_space,
-                    num_folds=self.training_params.num_folds,
-                    max_eval=self.training_params.max_eval,
-                    trial_timeout=self.training_params.trial_timeout,
-                    is_parallel=self.training_params.is_parallel,
-                    random_state=self.training_params.random_state,
-                    # **{'uncertainty_samples': False}
-                    # regressors=self.training_params.regressors,
-                    # prophet_kwargs=self.training_params.prophet_kwargs,
-                )
+            horizon=self.training_params.horizon,
+            frequency_unit=self.training_params.unit,
+            metric=self.training_params.loss_metric,
+            interval_width=self.training_params.interval_width,  # type: ignore
+            country_holidays=self.training_params.country_holidays,
+            search_space=self.training_params.search_space,
+            num_folds=self.training_params.num_folds,
+            max_eval=self.training_params.max_eval,
+            trial_timeout=self.training_params.trial_timeout,
+            is_parallel=self.training_params.is_parallel,
+            random_state=self.training_params.random_state,
+            # **{'uncertainty_samples': False}
+            # regressors=self.training_params.regressors,
+            # prophet_kwargs=self.training_params.prophet_kwargs,
+        )
 
         result = hyperopt_estim.fit(self.training_data)
         result["ts_id"] = self.ts_id
@@ -172,14 +176,10 @@ class ProphetHyperOptTrainer:
 
         # Create mlflow prophet model
         model_json = (
-            result[["ts_id", "model_json"]]
-            .set_index("ts_id")
-            .to_dict()["model_json"]
+            result[["ts_id", "model_json"]].set_index("ts_id").to_dict()["model_json"]
         )
         start_time = (
-            result[["ts_id", "start_time"]]
-            .set_index("ts_id")
-            .to_dict()["start_time"]
+            result[["ts_id", "start_time"]].set_index("ts_id").to_dict()["start_time"]
         )
         end_time = (
             result[["ts_id", "end_time"]].set_index("ts_id").to_dict()["end_time"]
@@ -202,7 +202,6 @@ class ProphetHyperOptTrainer:
 
         return prophet_model, model_json, result, avg_metrics, prediction
 
-    
     def fit_with_mlflow(self, mlflow_run):
         prophet_model, model_json, result, avg_metrics, prediction = self.training()
 
@@ -212,7 +211,6 @@ class ProphetHyperOptTrainer:
         sample_input.drop(columns=["y"], inplace=True)
 
         model_dict = json.loads(model_json[list(model_json.keys())[0]])
-
 
         mlflow_prophet_log_model(prophet_model, sample_input=sample_input)
 
@@ -261,16 +259,14 @@ class ProphetHyperOptTrainer:
 
         return result[self.training_params.result_columns]
 
-
     def fit(self):
         if self.training_params.use_mlflow:
             with mlflow.start_run(
-                        experiment_id=self.training_params.experiment_id,
-                        run_name=f"prophet_{self.ts_id}",
-                    ) as mlflow_run:
+                experiment_id=self.training_params.experiment_id,
+                run_name=f"prophet_{self.ts_id}",
+            ) as mlflow_run:
                 return self.fit_with_mlflow(mlflow_run)
         else:
             prophet_model, model_json, result, avg_metrics, prediction = self.training()
 
             return result[self.training_params.result_columns]
-
