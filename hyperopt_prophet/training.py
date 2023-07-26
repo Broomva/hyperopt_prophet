@@ -8,47 +8,43 @@ from time import time
 
 import mlflow
 import mlflow.prophet
-
 # import mlflow.spark
 import pandas as pd
 from dotenv import load_dotenv
 from hyperopt import hp
 from mlflowops import MLFlowOps
-from pydantic import BaseModel
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from .model import (
-    MultiSeriesProphetModel,
-    ProphetHyperoptEstimator,
-    mlflow_prophet_log_model,
-)
+from .model import (MultiSeriesProphetModel, ProphetHyperoptEstimator,
+                    mlflow_prophet_log_model)
 from .utils import get_plotly_forecast, plotly_fig2pil
 
 warnings.filterwarnings("ignore")
 
 
-def prophet_hyperopt_training(train_data):
-    this_module_path = Path(__file__).parent.resolve()
-    load_dotenv(f"{this_module_path}/training.env")
-    training_params = {
-        "target_col": os.environ.get("target_col", "y"),
-        "id_cols": ["ts_id"],
-        "time_col": os.environ.get("time_col", "ds"),
-        "horizon": os.environ.get("horizon", "1440"),
-        "experiment_id": os.environ.get("experiment_id", "0"),
-        "max_eval": os.environ.get("max_eval", "5"),
-        "num_folds": os.environ.get("num_folds", "1"),
-        "loss_metric": os.environ.get("loss_metric", "mse"),
-        "base_model_name": os.environ.get("base_model_name", "prohet_hyperopt"),
-        "is_parallel": os.environ.get("is_parallel", "False"),
-    }
-    training_params = ProphetTrainingParams(**training_params)
+# def prophet_hyperopt_training(train_data):
+#     this_module_path = Path(__file__).parent.resolve()
+#     load_dotenv(f"{this_module_path}/training.env")
+#     training_params = {
+#         "target_col": os.environ.get("target_col", "y"),
+#         "id_cols": ["ts_id"],
+#         "time_col": os.environ.get("time_col", "ds"),
+#         "horizon": os.environ.get("horizon", "1440"),
+#         "experiment_id": os.environ.get("experiment_id", "0"),
+#         "max_eval": os.environ.get("max_eval", "5"),
+#         "num_folds": os.environ.get("num_folds", "1"),
+#         "loss_metric": os.environ.get("loss_metric", "mse"),
+#         "base_model_name": os.environ.get("base_model_name", "prohet_hyperopt"),
+#         "is_parallel": os.environ.get("is_parallel", "False"),
+#     }
+#     training_params = ProphetTrainingParams(**training_params)
 
-    return ProphetHyperOptTrainer(
-        training_data=train_data, training_params=training_params
-    ).fit()
+#     return ProphetHyperOptTrainer(
+#         training_data=train_data, training_params=training_params
+#     ).fit()
 
 
-class ProphetTrainingParams(BaseModel):
+class ProphetTrainingParams(BaseSettings):
     """
     Initialization
     :param horizon: Number of periods to forecast forward
@@ -69,14 +65,19 @@ class ProphetTrainingParams(BaseModel):
         `The Prophet source code <https://github.com/facebook/prophet/blob/master/python/prophet/forecaster.py>`_.
     """
 
+    model_config = SettingsConfigDict(
+        env_file="training.env",
+        env_file_encoding="utf-8",
+        arbitrary_types_allowed=True,
+        extra="ignore",
+    )
     target_col: str = "y"
     time_col: str = "ds"
     unit: str = "minute"
-    id_cols: list = ["ts_id"]
+    id_cols: str = "ts_id"
     horizon: int = 1440
     interval_width: float = 0.8
     experiment_id: str = ""
-    sample_input: pd.DataFrame = None  # type: ignore
     result_columns: list = [
         "ts_id",
         "run_id",
@@ -115,9 +116,6 @@ class ProphetTrainingParams(BaseModel):
         ),
     }
     use_mlflow: bool = False
-
-    class Config:
-        arbitrary_types_allowed = True
 
 
 class ProphetHyperOptTrainer:

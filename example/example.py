@@ -1,12 +1,13 @@
 # %%
 import pandas as pd
 
-from hyperopt_prophet import training
+from hyperopt_prophet.training import (ProphetHyperOptTrainer,
+                                       ProphetTrainingParams)
 
 # %%
 
-data = pd.read_csv("sample_data/data.csv")
+data = pd.read_csv("sample_data.csv")
 # %%
 
-results = training.prophet_hyperopt_training(data)
+model = ProphetHyperOptTrainer(training_data=data, training_params=ProphetTrainingParams(_env_file='training.env'))
 # %%
