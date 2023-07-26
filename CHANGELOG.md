@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/Broomva/hyperopt_prophet/compare/v0.1.0...v0.1.1) (2023-07-26)
+
+
+### Bug Fixes
+
+* added example.py and sample_data/data.csv ([1089704](https://github.com/Broomva/hyperopt_prophet/commit/1089704042fdf8aa66ce24437f6750154202b5ed))
+
 ## 0.1.0 (2023-07-21)
 
 
