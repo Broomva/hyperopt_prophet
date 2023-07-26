@@ -11,8 +11,11 @@ from hyperopt import hp
 from mlflowops import MLFlowOps
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from .model import (MultiSeriesProphetModel, ProphetHyperoptEstimator,
-                    mlflow_prophet_log_model)
+from .model import (
+    MultiSeriesProphetModel,
+    ProphetHyperoptEstimator,
+    mlflow_prophet_log_model,
+)
 from .utils import get_plotly_forecast, plotly_fig2pil
 
 warnings.filterwarnings("ignore")

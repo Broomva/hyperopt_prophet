@@ -1,8 +1,7 @@
 # %%
 import pandas as pd
 
-from hyperopt_prophet.training import (ProphetHyperOptTrainer,
-                                       ProphetTrainingParams)
+from hyperopt_prophet.training import ProphetHyperOptTrainer, ProphetTrainingParams
 from hyperopt_prophet.utils import get_plotly_forecast
 
 # %%
