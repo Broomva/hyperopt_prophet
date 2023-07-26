@@ -1,15 +1,27 @@
+import logging
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Union
+from enum import Enum
+from functools import partial
+from typing import Any, Dict, List, Optional, Union
 
 import cloudpickle
+import hyperopt
 import mlflow
+import numpy as np
 import pandas as pd
 import prophet
+from hyperopt import SparkTrials, Trials, fmin
 from mlflow.exceptions import MlflowException
 from mlflow.models.signature import ModelSignature, infer_signature
 from mlflow.protos.databricks_pb2 import INVALID_PARAMETER_VALUE
 from mlflow.utils.environment import _mlflow_conda_env
-from utils import OFFSET_ALIAS_MAP
+from prophet import Prophet
+from prophet.diagnostics import cross_validation, performance_metrics
+from prophet.serialize import model_to_json
+
+from .utils import OFFSET_ALIAS_MAP, generate_cutoffs, get_validation_horizon
+
+logging.getLogger().setLevel(logging.CRITICAL)
 
 
 class ForecastModel(ABC, mlflow.pyfunc.PythonModel):
@@ -356,24 +368,6 @@ def mlflow_prophet_log_model(
     :param sample_input: sample input Dataframes for model inference
     """
     mlflow_forecast_log_model(prophet_model, sample_input)
-
-
-import logging
-from abc import ABC
-from enum import Enum
-from functools import partial
-from typing import Any, Dict, List, Optional
-
-import hyperopt
-import numpy as np
-import pandas as pd
-from hyperopt import SparkTrials, Trials, fmin
-from prophet import Prophet
-from prophet.diagnostics import cross_validation, performance_metrics
-from prophet.serialize import model_to_json
-from utils import OFFSET_ALIAS_MAP, generate_cutoffs, get_validation_horizon
-
-logging.getLogger().setLevel(logging.CRITICAL)
 
 
 class ProphetHyperParams(Enum):

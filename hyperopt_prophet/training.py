@@ -8,19 +8,16 @@ from time import time
 
 import mlflow
 import mlflow.prophet
-
 # import mlflow.spark
 import pandas as pd
 from dotenv import load_dotenv
 from hyperopt import hp
 from mlflowops import MLFlowOps
-from model import (
-    MultiSeriesProphetModel,
-    ProphetHyperoptEstimator,
-    mlflow_prophet_log_model,
-)
 from pydantic import BaseModel
-from utils import get_plotly_forecast, plotly_fig2pil
+
+from .model import (MultiSeriesProphetModel, ProphetHyperoptEstimator,
+                    mlflow_prophet_log_model)
+from .utils import get_plotly_forecast, plotly_fig2pil
 
 warnings.filterwarnings("ignore")
 
@@ -44,7 +41,7 @@ def prophet_hyperopt_training(train_data):
 
     return ProphetHyperOptTrainer(
         training_data=train_data, training_params=training_params
-    ).train()
+    ).fit()
 
 
 class ProphetTrainingParams(BaseModel):
@@ -113,6 +110,7 @@ class ProphetTrainingParams(BaseModel):
             "seasonality_mode", ["additive", "multiplicative"]
         ),
     }
+    use_mlflow: bool = False
 
     class Config:
         arbitrary_types_allowed = True
@@ -139,122 +137,140 @@ class ProphetHyperOptTrainer:
             training_loss, training_run_id
         )
 
-    def train(self):
-        with mlflow.start_run(
-            experiment_id=self.training_params.experiment_id,
-            run_name=f"prophet_{self.ts_id}",
-        ) as mlflow_run:
-            hyperopt_estim = ProphetHyperoptEstimator(
-                horizon=self.training_params.horizon,
-                frequency_unit=self.training_params.unit,
-                metric=self.training_params.loss_metric,
-                interval_width=self.training_params.interval_width,  # type: ignore
-                country_holidays=self.training_params.country_holidays,
-                search_space=self.training_params.search_space,
-                num_folds=self.training_params.num_folds,
-                max_eval=self.training_params.max_eval,
-                trial_timeout=self.training_params.trial_timeout,
-                is_parallel=self.training_params.is_parallel,
-                random_state=self.training_params.random_state,
-                # **{'uncertainty_samples': False}
-                # regressors=self.training_params.regressors,
-                # prophet_kwargs=self.training_params.prophet_kwargs,
-            )
+    def training(self):
+        hyperopt_estim = ProphetHyperoptEstimator(
+                    horizon=self.training_params.horizon,
+                    frequency_unit=self.training_params.unit,
+                    metric=self.training_params.loss_metric,
+                    interval_width=self.training_params.interval_width,  # type: ignore
+                    country_holidays=self.training_params.country_holidays,
+                    search_space=self.training_params.search_space,
+                    num_folds=self.training_params.num_folds,
+                    max_eval=self.training_params.max_eval,
+                    trial_timeout=self.training_params.trial_timeout,
+                    is_parallel=self.training_params.is_parallel,
+                    random_state=self.training_params.random_state,
+                    # **{'uncertainty_samples': False}
+                    # regressors=self.training_params.regressors,
+                    # prophet_kwargs=self.training_params.prophet_kwargs,
+                )
 
-            result = hyperopt_estim.fit(self.training_data)
-            result["ts_id"] = self.ts_id
-            result["start_time"] = pd.Timestamp(self.training_data["ds"].min())
-            result["end_time"] = pd.Timestamp(self.training_data["ds"].max())
+        result = hyperopt_estim.fit(self.training_data)
+        result["ts_id"] = self.ts_id
+        result["start_time"] = pd.Timestamp(self.training_data["ds"].min())
+        result["end_time"] = pd.Timestamp(self.training_data["ds"].max())
 
-            # Log the metrics to mlflow
-            avg_metrics = (
-                result[["mse", "rmse", "mae", "mape", "mdape", "smape", "coverage"]]
-                .mean()
-                .to_frame(name="mean_metrics")
-                .reset_index()
-            )
-            avg_metrics["index"] = "val_" + avg_metrics["index"].astype(str)
-            avg_metrics.set_index("index", inplace=True)
+        # Log the metrics to mlflow
+        avg_metrics = (
+            result[["mse", "rmse", "mae", "mape", "mdape", "smape", "coverage"]]
+            .mean()
+            .to_frame(name="mean_metrics")
+            .reset_index()
+        )
+        avg_metrics["index"] = "val_" + avg_metrics["index"].astype(str)
+        avg_metrics.set_index("index", inplace=True)
 
-            # Create mlflow prophet model
-            model_json = (
-                result[["ts_id", "model_json"]]
-                .set_index("ts_id")
-                .to_dict()["model_json"]
-            )
-            start_time = (
-                result[["ts_id", "start_time"]]
-                .set_index("ts_id")
-                .to_dict()["start_time"]
-            )
-            end_time = (
-                result[["ts_id", "end_time"]].set_index("ts_id").to_dict()["end_time"]
-            )
-            end_history_time = max(end_time.values())
+        # Create mlflow prophet model
+        model_json = (
+            result[["ts_id", "model_json"]]
+            .set_index("ts_id")
+            .to_dict()["model_json"]
+        )
+        start_time = (
+            result[["ts_id", "start_time"]]
+            .set_index("ts_id")
+            .to_dict()["start_time"]
+        )
+        end_time = (
+            result[["ts_id", "end_time"]].set_index("ts_id").to_dict()["end_time"]
+        )
+        end_history_time = max(end_time.values())
 
-            prophet_model = MultiSeriesProphetModel(
-                model_json,
-                start_time,
-                end_history_time,
-                self.training_params.horizon,
-                self.training_params.unit,
-                self.training_params.time_col,
-                self.training_params.id_cols,
-            )
+        prophet_model = MultiSeriesProphetModel(
+            model_json,
+            start_time,
+            end_history_time,
+            self.training_params.horizon,
+            self.training_params.unit,
+            self.training_params.time_col,
+            self.training_params.id_cols,
+        )
 
-            # Generate sample input dataframe
-            sample_input = self.training_data.head(20)
-            sample_input["ds"] = pd.to_datetime(sample_input["ds"])
-            sample_input.drop(columns=["y"], inplace=True)
+        prediction = prophet_model.predict_timeseries(
+            horizon=self.training_params.horizon, include_history=True
+        )
 
-            mlflow_prophet_log_model(prophet_model, sample_input=sample_input)
+        return prophet_model, model_json, result, avg_metrics, prediction
 
-            model_dict = json.loads(model_json[list(model_json.keys())[0]])
-            for model_key in model_dict:
-                if model_key not in [
-                    "changepoints",
-                    "history_dates",
-                    "train_holiday_names",
-                    "changepoints_t",
-                    "history",
-                    "train_component_cols",
-                    "params",
-                ]:
-                    mlflow.log_param(model_key, model_dict[model_key])
+    
+    def fit_with_mlflow(self, mlflow_run):
+        prophet_model, model_json, result, avg_metrics, prediction = self.training()
 
-            for key in self.training_params.dict():
-                mlflow.log_param(key, self.training_params.dict()[key])
+        # Generate sample input dataframe
+        sample_input = self.training_data.head(20)
+        sample_input["ds"] = pd.to_datetime(sample_input["ds"])
+        sample_input.drop(columns=["y"], inplace=True)
 
-            mlflow.log_param("series_end_time", result["end_time"].iloc[0])
-            mlflow.log_param("series_start_time", result["start_time"].iloc[0])
-            mlflow.log_metrics(avg_metrics.to_dict()["mean_metrics"])
+        model_dict = json.loads(model_json[list(model_json.keys())[0]])
 
-            prediction = prophet_model.predict_timeseries(
-                horizon=self.training_params.horizon, include_history=True
-            )
 
-            id_model = prophet_model.model(self.ts_id)  # type: ignore
+        mlflow_prophet_log_model(prophet_model, sample_input=sample_input)
 
-            # history = id_model.history
+        for model_key in model_dict:
+            if model_key not in [
+                "changepoints",
+                "history_dates",
+                "train_holiday_names",
+                "changepoints_t",
+                "history",
+                "train_component_cols",
+                "params",
+            ]:
+                mlflow.log_param(model_key, model_dict[model_key])
 
-            fig = get_plotly_forecast(id_model, prediction)
+        for key in self.training_params.dict():
+            mlflow.log_param(key, self.training_params.dict()[key])
 
-            mlflow.log_image(image=plotly_fig2pil(fig), artifact_file="forecast.png")
+        mlflow.log_param("series_end_time", result["end_time"].iloc[0])
+        mlflow.log_param("series_start_time", result["start_time"].iloc[0])
+        mlflow.log_metrics(avg_metrics.to_dict()["mean_metrics"])
 
-            training_loss = result[self.training_params.loss_metric].iloc[0]
-            training_run_id = mlflow_run.info.run_id
+        id_model = prophet_model.model(self.ts_id)  # type: ignore
 
-            result["run_id"] = training_run_id
+        # history = id_model.history
 
-            # get the start and end times for the run
-            run_start_time = mlflow_run.info.start_time
+        fig = get_plotly_forecast(id_model, prediction)
 
-            # calculate the duration of the run in seconds
-            result["training_duration"] = round(time() * 1000) - run_start_time
+        mlflow.log_image(image=plotly_fig2pil(fig), artifact_file="forecast.png")
 
-            # Register the model
-            self.register_model(
-                training_loss=training_loss, training_run_id=training_run_id
-            )
+        training_loss = result[self.training_params.loss_metric].iloc[0]
+        training_run_id = mlflow_run.info.run_id
+
+        result["run_id"] = training_run_id
+
+        # get the start and end times for the run
+        run_start_time = mlflow_run.info.start_time
+
+        # calculate the duration of the run in seconds
+        result["training_duration"] = round(time() * 1000) - run_start_time
+
+        # Register the model
+        self.register_model(
+            training_loss=training_loss, training_run_id=training_run_id
+        )
+
+        return result[self.training_params.result_columns]
+
+
+    def fit(self):
+        if self.training_params.use_mlflow:
+            with mlflow.start_run(
+                        experiment_id=self.training_params.experiment_id,
+                        run_name=f"prophet_{self.ts_id}",
+                    ) as mlflow_run:
+                return self.fit_with_mlflow(mlflow_run)
+        else:
+            prophet_model, model_json, result, avg_metrics, prediction = self.training()
 
             return result[self.training_params.result_columns]
+

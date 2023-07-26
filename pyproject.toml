@@ -11,16 +11,18 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = "^3.8"
 pandas = "^2.0.3"
-pydantic = "^2.0.3"
+pydantic = "^2.1.0"
+pydantic-settings = "^2.0.2"
 hyperopt = "^0.2.7"
 mlflow = "^2.5.0"
 python-dotenv = "^1.0.0"
 cloudpickle = "^2.2.1"
 cython = "^3.0.0"
-prophet = "^1.1.4"
-mlflowops = '^0.1.1'
+pystan = "^2.19.1.1"
+prophet = "^1.0.0"
+mlflowops = '^0.1.2'
 
 
 [tool.poetry.group.dev.dependencies]
