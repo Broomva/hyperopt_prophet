@@ -8,40 +8,20 @@ from time import time
 
 import mlflow
 import mlflow.prophet
-# import mlflow.spark
+
 import pandas as pd
-from dotenv import load_dotenv
 from hyperopt import hp
 from mlflowops import MLFlowOps
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from .model import (MultiSeriesProphetModel, ProphetHyperoptEstimator,
-                    mlflow_prophet_log_model)
+from .model import (
+    MultiSeriesProphetModel,
+    ProphetHyperoptEstimator,
+    mlflow_prophet_log_model,
+)
 from .utils import get_plotly_forecast, plotly_fig2pil
 
 warnings.filterwarnings("ignore")
-
-
-# def prophet_hyperopt_training(train_data):
-#     this_module_path = Path(__file__).parent.resolve()
-#     load_dotenv(f"{this_module_path}/training.env")
-#     training_params = {
-#         "target_col": os.environ.get("target_col", "y"),
-#         "id_cols": ["ts_id"],
-#         "time_col": os.environ.get("time_col", "ds"),
-#         "horizon": os.environ.get("horizon", "1440"),
-#         "experiment_id": os.environ.get("experiment_id", "0"),
-#         "max_eval": os.environ.get("max_eval", "5"),
-#         "num_folds": os.environ.get("num_folds", "1"),
-#         "loss_metric": os.environ.get("loss_metric", "mse"),
-#         "base_model_name": os.environ.get("base_model_name", "prohet_hyperopt"),
-#         "is_parallel": os.environ.get("is_parallel", "False"),
-#     }
-#     training_params = ProphetTrainingParams(**training_params)
-
-#     return ProphetHyperOptTrainer(
-#         training_data=train_data, training_params=training_params
-#     ).fit()
 
 
 class ProphetTrainingParams(BaseSettings):
