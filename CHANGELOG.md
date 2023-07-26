@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/Broomva/hyperopt_prophet/compare/v0.1.4...v0.1.5) (2023-07-26)
+
+
+### Bug Fixes
+
+* added compose-dev.yaml, removed pystan from pyproject.toml ([6af477d](https://github.com/Broomva/hyperopt_prophet/commit/6af477d36ad52ba1bee264eb92f614cec7309913))
+
 ## [0.1.4](https://github.com/Broomva/hyperopt_prophet/compare/v0.1.3...v0.1.4) (2023-07-26)
 
 
