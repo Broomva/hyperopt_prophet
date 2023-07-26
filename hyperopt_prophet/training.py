@@ -11,11 +11,8 @@ from hyperopt import hp
 from mlflowops import MLFlowOps
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from .model import (
-    MultiSeriesProphetModel,
-    ProphetHyperoptEstimator,
-    mlflow_prophet_log_model,
-)
+from .model import (MultiSeriesProphetModel, ProphetHyperoptEstimator,
+                    mlflow_prophet_log_model)
 from .utils import get_plotly_forecast, plotly_fig2pil
 
 warnings.filterwarnings("ignore")
@@ -101,7 +98,7 @@ class ProphetHyperOptTrainer:
     ):
         self.training_data = training_data
         self.training_params = training_params
-        self.ts_id = str(training_data["ts_id"].iloc[0])
+        self.ts_id = str(training_data[training_params.id_cols].iloc[0])
 
     def register_model(self, training_loss, training_run_id):
         runs_names = "prophet_" + self.ts_id
