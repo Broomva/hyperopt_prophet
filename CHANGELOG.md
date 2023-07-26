@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.6](https://github.com/Broomva/hyperopt_prophet/compare/v0.1.5...v0.1.6) (2023-07-26)
+
+
+### Bug Fixes
+
+* corrected ts_id training definition ([f63dde0](https://github.com/Broomva/hyperopt_prophet/commit/f63dde03c3e65d7725ed7416180aad51d005b322))
+
 ## [0.1.5](https://github.com/Broomva/hyperopt_prophet/compare/v0.1.4...v0.1.5) (2023-07-26)
 
 
