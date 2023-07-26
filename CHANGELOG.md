@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/Broomva/hyperopt_prophet/compare/v0.1.1...v0.1.2) (2023-07-26)
+
+
+### Bug Fixes
+
+* rename example files and corrected devcontainer.json ([64b701c](https://github.com/Broomva/hyperopt_prophet/commit/64b701c4959b5e353951607332c40ce1cf3898c2))
+
 ## [0.1.1](https://github.com/Broomva/hyperopt_prophet/compare/v0.1.0...v0.1.1) (2023-07-26)
 
 
