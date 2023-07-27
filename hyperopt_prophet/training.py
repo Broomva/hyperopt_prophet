@@ -9,11 +9,16 @@ import mlflow.prophet
 import pandas as pd
 from hyperopt import hp
 from mlflowops import MLFlowOps
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings
 
-from .model import (MultiSeriesProphetModel, ProphetHyperoptEstimator,
-                    mlflow_prophet_log_model)
+from .model import (ProphetHyperoptEstimator,
+                    mlflow_prophet_log_model, ProphetModel)
 from .utils import get_plotly_forecast, plotly_fig2pil
+
+import logging
+logging.getLogger('prophet').setLevel(logging.WARNING)
+logging.getLogger('cmdstanpy').setLevel(logging.WARNING)
+
 
 warnings.filterwarnings("ignore")
 
@@ -39,12 +44,12 @@ class ProphetTrainingParams(BaseSettings):
         `The Prophet source code <https://github.com/facebook/prophet/blob/master/python/prophet/forecaster.py>`_.
     """
 
-    model_config = SettingsConfigDict(
-        env_file="training.env",
-        env_file_encoding="utf-8",
-        arbitrary_types_allowed=True,
-        extra="ignore",
-    )
+    # model_config = SettingsConfigDict(
+    #     env_file="training.env",
+    #     env_file_encoding="utf-8",
+    #     arbitrary_types_allowed=True,
+    #     extra="ignore",
+    # )
     target_col: str = "y"
     time_col: str = "ds"
     unit: str = "minute"
@@ -90,6 +95,13 @@ class ProphetTrainingParams(BaseSettings):
         ),
     }
     use_mlflow: bool = False
+    
+    class Config:
+        env_file="training.env"
+        env_file_encoding="utf-8"
+        arbitrary_types_allowed=True
+        extra="ignore"
+        
 
 
 class ProphetHyperOptTrainer:
@@ -99,6 +111,8 @@ class ProphetHyperOptTrainer:
         self.training_data = training_data
         self.training_params = training_params
         self.ts_id = str(training_data[training_params.id_cols].iloc[0])
+        self.training_data["ds"] = pd.to_datetime(self.training_data[self.training_params.time_col])
+        self.training_data["y"] = self.training_data[self.training_params.target_col]
 
     def register_model(self, training_loss, training_run_id):
         runs_names = "prophet_" + self.ts_id
@@ -114,6 +128,9 @@ class ProphetHyperOptTrainer:
         )
 
     def training(self):
+        # Set the start time of the run
+        run_start_time = time()
+        
         hyperopt_estim = ProphetHyperoptEstimator(
             horizon=self.training_params.horizon,
             frequency_unit=self.training_params.unit,
@@ -133,8 +150,8 @@ class ProphetHyperOptTrainer:
 
         result = hyperopt_estim.fit(self.training_data)
         result["ts_id"] = self.ts_id
-        result["start_time"] = pd.Timestamp(self.training_data["ds"].min())
-        result["end_time"] = pd.Timestamp(self.training_data["ds"].max())
+        result["start_time"] = pd.Timestamp(self.training_data[self.training_params.time_col].min())
+        result["end_time"] = pd.Timestamp(self.training_data[self.training_params.time_col].max())
 
         # Log the metrics to mlflow
         avg_metrics = (
@@ -146,40 +163,34 @@ class ProphetHyperOptTrainer:
         avg_metrics["index"] = "val_" + avg_metrics["index"].astype(str)
         avg_metrics.set_index("index", inplace=True)
 
-        # Create mlflow prophet model
-        model_json = (
-            result[["ts_id", "model_json"]].set_index("ts_id").to_dict()["model_json"]
-        )
-        start_time = (
-            result[["ts_id", "start_time"]].set_index("ts_id").to_dict()["start_time"]
-        )
-        end_time = (
-            result[["ts_id", "end_time"]].set_index("ts_id").to_dict()["end_time"]
-        )
-        end_history_time = max(end_time.values())
+        # Create prophet model
 
-        prophet_model = MultiSeriesProphetModel(
-            model_json,
-            start_time,
-            end_history_time,
-            self.training_params.horizon,
-            self.training_params.unit,
-            self.training_params.time_col,
-            self.training_params.id_cols,
+        model_json = result['model_json'][0]
+
+        prophet_model = ProphetModel(
+            model_json = model_json,
+            horizon = self.training_params.horizon,
+            frequency = self.training_params.unit,
+            time_col = self.training_params.time_col,
         )
 
         prediction = prophet_model.predict_timeseries(
             horizon=self.training_params.horizon, include_history=True
         )
+        
+        result["run_id"] = 'local_training'
+
+        # calculate the duration of the run in seconds
+        result["training_duration"] = time() - run_start_time
 
         return prophet_model, model_json, result, avg_metrics, prediction
 
-    def fit_with_mlflow(self, mlflow_run):
+    def train_with_mlflow(self, mlflow_run):
         prophet_model, model_json, result, avg_metrics, prediction = self.training()
 
         # Generate sample input dataframe
         sample_input = self.training_data.head(20)
-        sample_input["ds"] = pd.to_datetime(sample_input["ds"])
+        sample_input[self.training_params.time_col] = pd.to_datetime(sample_input[self.training_params.time_col])
         sample_input.drop(columns=["y"], inplace=True)
 
         model_dict = json.loads(model_json[list(model_json.keys())[0]])
@@ -206,8 +217,6 @@ class ProphetHyperOptTrainer:
         mlflow.log_metrics(avg_metrics.to_dict()["mean_metrics"])
 
         id_model = prophet_model.model(self.ts_id)  # type: ignore
-
-        # history = id_model.history
 
         fig = get_plotly_forecast(id_model, prediction)
 
@@ -237,8 +246,6 @@ class ProphetHyperOptTrainer:
                 experiment_id=self.training_params.experiment_id,
                 run_name=f"prophet_{self.ts_id}",
             ) as mlflow_run:
-                return self.fit_with_mlflow(mlflow_run)
+                return self.train_with_mlflow(mlflow_run)
         else:
-            prophet_model, model_json, result, avg_metrics, prediction = self.training()
-
-            return result[self.training_params.result_columns]
+            return self.training()

@@ -21,7 +21,10 @@ from prophet.serialize import model_to_json
 
 from .utils import OFFSET_ALIAS_MAP, generate_cutoffs, get_validation_horizon
 
-logging.getLogger().setLevel(logging.CRITICAL)
+import logging
+logging.getLogger('prophet').setLevel(logging.WARNING)
+logging.getLogger('cmdstanpy').setLevel(logging.WARNING)
+
 
 
 class ForecastModel(ABC, mlflow.pyfunc.PythonModel):
@@ -191,175 +194,8 @@ class ProphetModel(ForecastModel):
         return super().infer_signature(sample_input)
 
 
-class MultiSeriesProphetModel(ProphetModel):
-    """
-    Prophet mlflow model wrapper for multi-series forecasting.
-    """
-
-    def __init__(
-        self,
-        model_json: Dict[str, str],
-        timeseries_starts: Dict[str, pd.Timestamp],
-        timeseries_end: str,
-        horizon: int,
-        frequency: str,
-        time_col: str,
-        id_cols: List[str],
-    ) -> None:
-        """
-        Initialize the mlflow Python model wrapper for mlflow
-        :param model_json: the dictionary of json strings of Prophet model for multi-series forecasting
-        :param timeseries_starts: the dictionary of pd.Timestamp as the starting time of each time series
-        :param timeseries_end: the end time of the time series
-        :param horizon: Int number of periods to forecast forward
-        :param frequency: the frequency of the time series
-        :param time_col: the column name of the time column
-        :param id_cols: the column names of the identity columns for multi-series time series
-        """
-        super().__init__(model_json, horizon, frequency, time_col)
-        self._frequency = frequency
-        self._timeseries_end = timeseries_end
-        self._timeseries_starts = timeseries_starts
-        self._id_cols = id_cols
-
-    def model(self, id: str) -> Optional[prophet.forecaster.Prophet]:  # type: ignore
-        """
-        Deserialize one Prophet model from json string based on the id
-        :param id: identity for the Prophet model
-        :return: Prophet model
-        """
-        from prophet.serialize import model_from_json
-
-        if id in self._model_json:
-            return model_from_json(self._model_json[id])  # type: ignore
-        return None
-
-    def _make_future_dataframe(
-        self, id: str, horizon: int, include_history: bool = True
-    ) -> pd.DataFrame:
-        """
-        Generate future dataframe for one model by calling the API from prophet
-        :param id: identity for the Prophet model
-        :param horizon: Int number of periods to forecast forward
-        :param include_history: Boolean to include the historical dates in the data
-            frame for predictions.
-        :return: pd.Dataframe that extends forward from the end of self.history for the
-        requested number of periods.
-        """
-        end_time = pd.Timestamp(self._timeseries_end)
-        if include_history:
-            start_time = self._timeseries_starts[id]
-        else:
-            start_time = end_time + pd.Timedelta(value=1, unit=self._frequency)  # type: ignore
-
-        date_rng = pd.date_range(
-            start=start_time,
-            end=end_time + pd.Timedelta(value=horizon, unit=self._frequency),  # type: ignore
-            freq=OFFSET_ALIAS_MAP[self._frequency],
-        )
-        return pd.DataFrame(date_rng, columns=["ds"])
-
-    def _predict_impl(self, df: pd.DataFrame, horizon: int = None, include_history: bool = True) -> pd.DataFrame:  # type: ignore
-        """
-        Predict using the API from prophet model.
-        :param df: input dataframe
-        :param horizon: Int number of periods to forecast forward.
-        :param include_history: Boolean to include the historical dates in the data
-            frame for predictions.
-        :return: A pd.DataFrame with the forecast components.
-        """
-        col_id = str(df["ts_id"].iloc[0])
-        future_pd = self._make_future_dataframe(
-            horizon=horizon or self._horizon, id=col_id, include_history=include_history
-        )
-        return self.model(col_id).predict(future_pd)  # type: ignore
-
-    def predict_timeseries(self, horizon: int = None, include_history: bool = True) -> pd.DataFrame:  # type: ignore
-        """
-        Predict using the prophet model.
-        :param horizon: Int number of periods to forecast forward.
-        :param include_history: Boolean to include the historical dates in the data
-            frame for predictions.
-        :return: A pd.DataFrame with the forecast components.
-        """
-        ids = pd.DataFrame(self._model_json.keys(), columns=["ts_id"])  # type: ignore
-        return (
-            ids.groupby("ts_id")
-            .apply(lambda df: self._predict_impl(df, horizon, include_history))
-            .reset_index()
-        )
-
-    @staticmethod
-    def get_reserved_cols() -> List[str]:
-        """
-        Get the list of reserved columns for prophet.
-        :return: List of the reserved column names
-        """
-        reserved_names = [
-            "trend",
-            "additive_terms",
-            "daily",
-            "weekly",
-            "yearly",
-            "holidays",
-            "zeros",
-            "extra_regressors_additive",
-            "yhat",
-            "extra_regressors_multiplicative",
-            "multiplicative_terms",
-        ]
-        rn_l = [n + "_lower" for n in reserved_names]
-        rn_u = [n + "_upper" for n in reserved_names]
-        reserved_names.extend(rn_l)
-        reserved_names.extend(rn_u)
-        reserved_names.extend(["y", "cap", "floor", "y_scaled", "cap_scaled"])
-        return reserved_names
-
-    def model_predict(self, df: pd.DataFrame, horizon: int = None) -> pd.DataFrame:  # type: ignore
-        """
-        Predict API used for pandas UDF.
-        :param df: Input dataframe.
-        :param horizon: Int number of periods to forecast forward.
-        :return: A pd.DataFrame with the forecast components.
-        """
-        forecast_df = self._predict_impl(df, horizon)
-        return_cols = self.get_reserved_cols() + ["ds", "ts_id"]
-        result_df = pd.DataFrame(columns=return_cols)
-        result_df = pd.concat([result_df, forecast_df])
-        result_df["ts_id"] = str(df["ts_id"].iloc[0])
-        return result_df[return_cols]
-
-    def predict(self, context: mlflow.pyfunc.model.PythonModelContext, model_input: pd.DataFrame) -> pd.Series:  # type: ignore
-        """
-        Predict API from mlflow.pyfunc.PythonModel
-        :param context: A :class:`~PythonModelContext` instance containing artifacts that the model
-                        can use to perform inference.
-        :param model_input: Input dataframe
-        :return: A pd.DataFrame with the forecast components.
-        """
-        self._validate_cols(model_input, self._id_cols + [self._time_col])
-        test_df = model_input.copy()
-        test_df["ts_id"] = test_df[self._id_cols].astype(str).agg("-".join, axis=1)
-        test_df.rename(columns={self._time_col: "ds"}, inplace=True)
-
-        def model_prediction(df):
-            model = self.model(df.name)
-            if model:
-                predicts = model.predict(df)
-                # We have to explicitly assign the ts_id to avoid KeyError when model_input
-                # only has one row. For multi-rows model_input, the ts_id will be kept as index
-                # after groupby("ts_id").apply(...) and we can retrieve it by reset_index, but
-                # for one-row model_input the ts_id is missing from index.
-                predicts["ts_id"] = df.name
-                return predicts
-
-        predict_df = test_df.groupby("ts_id", group_keys=True).apply(model_prediction).reset_index(drop=True)  # type: ignore
-        return_df = test_df.merge(predict_df, how="left", on=["ts_id", "ds"])
-        return return_df["yhat"]
-
-
 def mlflow_prophet_log_model(
-    prophet_model: Union[ProphetModel, MultiSeriesProphetModel],
+    prophet_model: ProphetModel,
     sample_input: pd.DataFrame = None,
 ) -> None:  # type: ignore
     """

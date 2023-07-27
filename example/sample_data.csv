@@ -1,4 +1,4 @@
-ts_id,ds,y,water_prod,tubing_pressure,casing_pressure
+well_name,timestamp,gas_prod,water_prod,tubing_pressure,casing_pressure
 WL01,2023-07-17 00:00:00,256.8,6.04,101.75,131.74
 WL01,2023-07-16 00:00:00,256.75,6.07,125.62,134.09
 WL01,2023-07-15 00:00:00,259.61,5.31,100.39,132.61
