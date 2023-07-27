@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.0](https://github.com/Broomva/hyperopt_prophet/compare/v0.1.6...v0.2.0) (2023-07-27)
+
+
+### Features
+
+* tested regressors option ([62fa191](https://github.com/Broomva/hyperopt_prophet/commit/62fa19164b94d31186a772e347374b6059e19ced))
+
+
+### Bug Fixes
+
+* achieved working version with adecquate performance ([a9e9380](https://github.com/Broomva/hyperopt_prophet/commit/a9e938038cc255c65c581ffdb67607ab525eabb1))
+
 ## [0.1.6](https://github.com/Broomva/hyperopt_prophet/compare/v0.1.5...v0.1.6) (2023-07-26)
 
 
