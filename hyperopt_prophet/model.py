@@ -2,7 +2,7 @@ import logging
 from abc import ABC, abstractmethod
 from enum import Enum
 from functools import partial
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, Tuple
 
 import cloudpickle
 import hyperopt
@@ -19,12 +19,18 @@ from prophet import Prophet
 from prophet.diagnostics import cross_validation, performance_metrics
 from prophet.serialize import model_to_json
 
-from .utils import OFFSET_ALIAS_MAP, generate_cutoffs, get_validation_horizon
+from .utils import (
+    DATE_OFFSET_KEYWORD_MAP,
+    OFFSET_ALIAS_MAP,
+    generate_cutoffs,
+    get_validation_horizon,
+    is_quaterly_alias,
+)
 
 import logging
-logging.getLogger('prophet').setLevel(logging.WARNING)
-logging.getLogger('cmdstanpy').setLevel(logging.WARNING)
 
+logging.getLogger("prophet").setLevel(logging.WARNING)
+logging.getLogger("cmdstanpy").setLevel(logging.WARNING)
 
 
 class ForecastModel(ABC, mlflow.pyfunc.PythonModel):
@@ -92,10 +98,11 @@ class ProphetModel(ForecastModel):
 
     def __init__(
         self,
-        model_json: Union[Dict[str, str], str],
+        model_json: Union[Dict[Tuple, str], str],
         horizon: int,
         frequency: str,
         time_col: str,
+        regressors: List[str] = None,
     ) -> None:
         """
         Initialize the mlflow Python model wrapper for mlflow
@@ -109,9 +116,11 @@ class ProphetModel(ForecastModel):
         self._horizon = horizon
         self._frequency = frequency
         self._time_col = time_col
+        self._is_quaterly = is_quaterly_alias(frequency)
+        self.regressors = regressors or []
         super().__init__()
 
-    def load_context(self, context: mlflow.pyfunc.model.PythonModelContext) -> None:  # type: ignore
+    def load_context(self, context: mlflow.pyfunc.model.PythonModelContext) -> None:
         """
         Loads artifacts from the specified :class:`~PythonModelContext` that can be used
         :param context: A :class:`~PythonModelContext` instance containing artifacts that the model
@@ -125,7 +134,7 @@ class ProphetModel(ForecastModel):
     def model_env(self):
         return PROPHET_CONDA_ENV
 
-    def model(self) -> prophet.forecaster.Prophet:  # type: ignore
+    def model(self) -> prophet.forecaster.Prophet:
         """
         Deserialize a Prophet model from json string
         :return: Prophet model
@@ -134,8 +143,8 @@ class ProphetModel(ForecastModel):
 
         return model_from_json(self._model_json)
 
-    def _make_future_dataframe(
-        self, horizon: int, include_history: bool = True
+    def make_future_dataframe(
+        self, horizon: int = None, include_history: bool = True
     ) -> pd.DataFrame:
         """
         Generate future dataframe by calling the API from prophet
@@ -145,13 +154,25 @@ class ProphetModel(ForecastModel):
         :return: pd.Dataframe that extends forward from the end of self.history for the
         requested number of periods.
         """
-        return self.model().make_future_dataframe(
-            periods=horizon,
-            freq=OFFSET_ALIAS_MAP[self._frequency],
+        offset_kwarg = DATE_OFFSET_KEYWORD_MAP[OFFSET_ALIAS_MAP[self._frequency]]
+
+        futures = self.model().make_future_dataframe(
+            periods=horizon or self._horizon,
+            freq=pd.DateOffset(**offset_kwarg),
             include_history=include_history,
         )
+        # Create a new DataFrame with the original columns and the new columns
+        new_df = pd.DataFrame(columns=futures.columns.tolist() + self.regressors)
 
-    def _predict_impl(self, horizon: int = None, include_history: bool = True) -> pd.DataFrame:  # type: ignore
+        # Copy the original DataFrame to the new DataFrame
+        new_df[futures.columns] = futures
+        new_df.fillna(0, inplace=True)
+        return new_df
+        # futures = self.add_regressor_to_future(future, [temp, rain, sun, wind])
+
+    def _predict_impl(
+        self, horizon: int = None, include_history: bool = True
+    ) -> pd.DataFrame:
         """
         Predict using the API from prophet model.
         :param horizon: Int number of periods to forecast forward.
@@ -159,12 +180,14 @@ class ProphetModel(ForecastModel):
             frame for predictions.
         :return: A pd.DataFrame with the forecast components.
         """
-        future_pd = self._make_future_dataframe(
+        future_pd = self.make_future_dataframe(
             horizon=horizon or self._horizon, include_history=include_history
         )
         return self.model().predict(future_pd)
 
-    def predict_timeseries(self, horizon: int = None, include_history: bool = True) -> pd.DataFrame:  # type: ignore
+    def predict_timeseries(
+        self, horizon: int = None, include_history: bool = True
+    ) -> pd.DataFrame:
         """
         Predict using the prophet model.
         :param horizon: Int number of periods to forecast forward.
@@ -174,7 +197,9 @@ class ProphetModel(ForecastModel):
         """
         return self._predict_impl(horizon, include_history)
 
-    def predict(self, context: mlflow.pyfunc.model.PythonModelContext, model_input: pd.DataFrame) -> pd.Series:  # type: ignore
+    def predict(
+        self, context: mlflow.pyfunc.model.PythonModelContext, model_input: pd.DataFrame
+    ) -> pd.Series:
         """
         Predict API from mlflow.pyfunc.PythonModel
         :param context: A :class:`~PythonModelContext` instance containing artifacts that the model
@@ -187,9 +212,9 @@ class ProphetModel(ForecastModel):
         predict_df = self.model().predict(test_df)
         return predict_df["yhat"]
 
-    def infer_signature(self, sample_input: pd.DataFrame = None) -> ModelSignature:  # type: ignore
+    def infer_signature(self, sample_input: pd.DataFrame = None) -> ModelSignature:
         if sample_input is None:
-            sample_input = self._make_future_dataframe(horizon=1)
+            sample_input = self.make_future_dataframe(horizon=1)
             sample_input.rename(columns={"ds": self._time_col}, inplace=True)
         return super().infer_signature(sample_input)
 
@@ -222,6 +247,8 @@ def _prophet_fit_predict(
     interval_width: int,
     primary_metric: str,
     country_holidays: Optional[str] = None,
+    regressors=None,
+    **prophet_kwargs,
 ) -> Dict[str, Any]:
     """
     Training function for hyperparameter tuning with hyperopt
@@ -235,22 +262,29 @@ def _prophet_fit_predict(
     :param interval_width: Width of the uncertainty intervals provided for the forecast
     :param primary_metric: Metric that will be optimized across trials
     :param country_holidays: Built-in holidays for the specified country
+    :param prophet_kwargs: Optional keyword arguments for Prophet model.
     :return: Dictionary as the format for hyperopt
     """
-
-    model = Prophet(interval_width=interval_width, **params)
+    input_params = {**params, **prophet_kwargs}
+    model = Prophet(interval_width=interval_width, **input_params)
     if country_holidays:
         model.add_country_holidays(country_name=country_holidays)
-    model.fit(history_pd, iter=200)
 
+    if regressors:
+        for regressor in regressors:
+            model.add_regressor(regressor)
+
+    model.fit(history_pd, iter=200)
+    # offset_kwarg = DATE_OFFSET_KEYWORD_MAP[OFFSET_ALIAS_MAP[frequency]]
+    # horizon_offset = pd.DateOffset(**offset_kwarg) * horizon
+    horizon_timedelta = pd.to_timedelta(horizon, unit=frequency)
     # Evaluate Metrics
-    horizon_timedelta = pd.to_timedelta(horizon, unit=frequency)  # type: ignore
     df_cv = cross_validation(
         model, horizon=horizon_timedelta, cutoffs=cutoffs, disable_tqdm=True
     )  # disable tqdm to make it work with ipykernel and reduce the output size
     df_metrics = performance_metrics(df_cv)
 
-    metrics = df_metrics.mean().drop("horizon").to_dict()  # type: ignore
+    metrics = df_metrics.mean().drop("horizon").to_dict()
 
     return {
         "loss": metrics[primary_metric],
@@ -277,9 +311,11 @@ class ProphetHyperoptEstimator(ABC):
         algo=hyperopt.tpe.suggest,
         num_folds: int = 5,
         max_eval: int = 10,
-        trial_timeout: int = None,  # type: ignore
+        trial_timeout: int = None,
         random_state: int = 0,
         is_parallel: bool = True,
+        regressors=None,
+        **prophet_kwargs,
     ) -> None:
         """
         Initialization
@@ -295,7 +331,11 @@ class ProphetHyperoptEstimator(ABC):
         :param max_eval: Max number of trials generated in hyperopt
         :param trial_timeout: timeout for hyperopt
         :param random_state: random seed for hyperopt
-        :param is_parallel: Indicators to decide that whether run hyperopt in parallel
+        :param is_parallel: Indicators to decide that whether run hyperopt in
+        :param regressors: list of column names of external regressors
+        :param prophet_kwargs: Optional keyword arguments for Prophet model.
+            For information about the parameters see:
+            `The Prophet source code <https://github.com/facebook/prophet/blob/master/python/prophet/forecaster.py>`_.
         """
         self._horizon = horizon
         self._frequency_unit = OFFSET_ALIAS_MAP[frequency_unit]
@@ -309,6 +349,8 @@ class ProphetHyperoptEstimator(ABC):
         self._max_eval = max_eval
         self._timeout = trial_timeout
         self._is_parallel = is_parallel
+        self._regressors = regressors
+        self._prophet_kwargs = prophet_kwargs
 
     def fit(self, df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -340,6 +382,8 @@ class ProphetHyperoptEstimator(ABC):
             interval_width=self._interval_width,
             primary_metric=self._metric,
             country_holidays=self._country_holidays,
+            regressors=self._regressors,
+            **self._prophet_kwargs,
         )
 
         if self._is_parallel:
@@ -359,20 +403,33 @@ class ProphetHyperoptEstimator(ABC):
 
         # Retrain the model with all history data.
         model = Prophet(
-            changepoint_prior_scale=best_result.get(ProphetHyperParams.CHANGEPOINT_PRIOR_SCALE.value, 0.05),  # type: ignore
-            seasonality_prior_scale=best_result.get(ProphetHyperParams.SEASONALITY_PRIOR_SCALE.value, 10.0),  # type: ignore
-            holidays_prior_scale=best_result.get(ProphetHyperParams.HOLIDAYS_PRIOR_SCALE.value, 10.0),  # type: ignore
-            seasonality_mode=seasonality_mode[best_result.get(ProphetHyperParams.SEASONALITY_MODE.value, 0)],  # type: ignore
+            changepoint_prior_scale=best_result.get(
+                ProphetHyperParams.CHANGEPOINT_PRIOR_SCALE.value, 0.05
+            ),
+            seasonality_prior_scale=best_result.get(
+                ProphetHyperParams.SEASONALITY_PRIOR_SCALE.value, 10.0
+            ),
+            holidays_prior_scale=best_result.get(
+                ProphetHyperParams.HOLIDAYS_PRIOR_SCALE.value, 10.0
+            ),
+            seasonality_mode=seasonality_mode[
+                best_result.get(ProphetHyperParams.SEASONALITY_MODE.value, 0)
+            ],
             interval_width=self._interval_width,
+            **self._prophet_kwargs,
         )
 
         if self._country_holidays:
             model.add_country_holidays(country_name=self._country_holidays)
 
+        if self._regressors:
+            for regressor in self._regressors:
+                model.add_regressor(regressor)
+
         model.fit(df)
 
         model_json = model_to_json(model)
-        metrics = trials.best_trial["result"]["metrics"]  # type: ignore
+        metrics = trials.best_trial["result"]["metrics"]
 
         results_pd = pd.DataFrame({"model_json": model_json}, index=[0])
         results_pd.reset_index(level=0, inplace=True)

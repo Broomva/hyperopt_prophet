@@ -5,6 +5,8 @@ from typing import List, Optional
 import pandas as pd
 from PIL import Image
 from prophet.plot import plot_plotly
+import logging
+from typing import Dict, List, Optional, Tuple, Union
 
 _logger = logging.getLogger(__name__)
 
@@ -48,6 +50,109 @@ OFFSET_ALIAS_MAP = {
     "second": "S",
 }
 
+DATE_OFFSET_KEYWORD_MAP = {
+    "YS": {"years": 1},
+    "QS": {"months": 3},
+    "MS": {"months": 1},
+    "W": {"weeks": 1},
+    "D": {"days": 1},
+    "H": {"hours": 1},
+    "min": {"minutes": 1},
+    "S": {"seconds": 1},
+}
+
+QUATERLY_OFFSET_ALIAS = ["Q", "QS", "BQ", "BQS"]
+
+NON_DAILY_OFFSET_ALIAS = ["M", "MS", "Q", "QS", "Y", "YS"]
+
+#
+PERIOD_ALIAS_MAP = {
+    "W": "W",
+    "D": "D",
+    "H": "H",
+    "min": "min",
+    "S": "S",
+    "MS": "M",
+    "QS": "Q",
+    "YS": "Y",
+}
+
+
+def make_future_dataframe(
+    start_time: Union[pd.Timestamp, Dict[Tuple, pd.Timestamp]],
+    end_time: Union[pd.Timestamp, Dict[Tuple, pd.Timestamp]],
+    horizon: int,
+    frequency: str,
+    include_history: bool = True,
+    groups: List[Tuple] = None,
+    identity_column_names: List[str] = None,
+) -> pd.DataFrame:
+    """
+    Utility function to generate the dataframe with future timestamps.
+    :param start_time: the dictionary of the starting time of each time series in training data.
+    :param end_time: the dictionary of the end time of each time series in training data.
+    :param horizon: int number of periods to forecast forward.
+    :param frequency: the frequency of the time series
+    :param include_history:
+    :param groups: the collection of group(s) to generate forecast predictions.
+    :param identity_column_names: Column names of the identity columns
+    :return: pd.DataFrame that extends forward
+    """
+    if groups is None:
+        return make_single_future_dataframe(start_time, end_time, horizon, frequency)
+
+    future_df_list = []
+    for group in groups:
+        if type(start_time) is dict:
+            group_start_time = start_time[group]
+        else:
+            group_start_time = start_time
+        if type(end_time) is dict:
+            group_end_time = end_time[group]
+        else:
+            group_end_time = end_time
+        df = make_single_future_dataframe(
+            group_start_time, group_end_time, horizon, frequency, include_history
+        )
+        for idx, identity_column_name in enumerate(identity_column_names):
+            df[identity_column_name] = group[idx]
+        future_df_list.append(df)
+    return pd.concat(future_df_list)
+
+
+def make_single_future_dataframe(
+    start_time: pd.Timestamp,
+    end_time: pd.Timestamp,
+    horizon: int,
+    frequency: str,
+    include_history: bool = True,
+    column_name: str = "ds",
+) -> pd.DataFrame:
+    """
+    Generate future dataframe for one model
+    :param start_time: The starting time of time series of the training data.
+    :param end_time: The end time of time series of the training data.
+    :param horizon: Int number of periods to forecast forward.
+    :param frequency: The frequency of the time series
+    :param include_history: Boolean to include the historical dates in the data
+            frame for predictions.
+    :param column_name: column name of the time column. Default is "ds".
+    :return:
+    """
+    offset_freq = DATE_OFFSET_KEYWORD_MAP[OFFSET_ALIAS_MAP[frequency]]
+    unit_offset = pd.DateOffset(**offset_freq)
+    end_time = pd.Timestamp(end_time)
+
+    if include_history:
+        start_time = start_time
+    else:
+        start_time = end_time + unit_offset
+
+    date_rng = pd.date_range(
+        start=start_time, end=end_time + unit_offset * horizon, freq=unit_offset
+    )
+    return pd.DataFrame(date_rng, columns=[column_name])
+
 
 def get_validation_horizon(df: pd.DataFrame, horizon: int, unit: str) -> int:
     """
@@ -61,17 +166,28 @@ def get_validation_horizon(df: pd.DataFrame, horizon: int, unit: str) -> int:
     :return: horizon used for validation, in terms of the input `unit`
     """
     MIN_HORIZONS = 4  # minimum number of horizons in the dataframe
-    df_timedelta = df["ds"].max() - df["ds"].min()
-    horizon_timedelta = pd.to_timedelta(horizon, unit=unit)  # type: ignore
+    horizon_dateoffset = pd.DateOffset(**DATE_OFFSET_KEYWORD_MAP[unit]) * horizon
 
-    if MIN_HORIZONS * horizon_timedelta <= df_timedelta:
-        return horizon
-    validation_horizon_timedelta = df_timedelta / MIN_HORIZONS
-    validation_horizon = validation_horizon_timedelta // pd.to_timedelta(1, unit=unit)  # type: ignore
+    try:
+        if MIN_HORIZONS * horizon_dateoffset + df["ds"].min() <= df["ds"].max():
+            return horizon
+    except OverflowError:
+        pass
+
+    # In order to calculate the validation horizon, we incrementally add offset
+    # to the start time to the quarter of total timedelta. We did this since
+    # pd.DateOffset does not support divide by operation.
+    unit_dateoffset = pd.DateOffset(**DATE_OFFSET_KEYWORD_MAP[unit])
+    max_horizon = 0
+    cur_timestamp = df["ds"].min()
+    while cur_timestamp + unit_dateoffset <= df["ds"].max():
+        cur_timestamp += unit_dateoffset
+        max_horizon += 1
     _logger.info(
-        f"Horizon {horizon_timedelta} too long relative to dataframe's timedelta. Validation horizon will be reduced to {validation_horizon_timedelta}."
+        f"Horizon {horizon_dateoffset} too long relative to dataframe's "
+        f"timedelta. Validation horizon will be reduced to {max_horizon//MIN_HORIZONS*unit_dateoffset}."
     )
-    return validation_horizon
+    return max_horizon // MIN_HORIZONS
 
 
 def generate_cutoffs(
@@ -94,30 +210,47 @@ def generate_cutoffs(
     :return: list of pd.Timestamp cutoffs for cross-validation.
     """
     period = max(0.5 * horizon, 1)  # avoid empty cutoff buckets
-    period_timedelta = pd.to_timedelta(period, unit=unit)  # type: ignore
-    horizon_timedelta = pd.to_timedelta(horizon, unit=unit)  # type: ignore
+
+    # avoid non-integer months, quaters ands years.
+    if unit in NON_DAILY_OFFSET_ALIAS:
+        period = int(period)
+        period_dateoffset = pd.DateOffset(**DATE_OFFSET_KEYWORD_MAP[unit]) * period
+    else:
+        offset_kwarg = {list(DATE_OFFSET_KEYWORD_MAP[unit])[0]: period}
+        period_dateoffset = pd.DateOffset(**offset_kwarg)
+
+    horizon_dateoffset = pd.DateOffset(**DATE_OFFSET_KEYWORD_MAP[unit]) * horizon
 
     if not seasonal_unit:
         seasonal_unit = unit
-    seasonality_timedelta = pd.to_timedelta(seasonal_period, unit=seasonal_unit)  # type: ignore
 
-    initial = max(3 * horizon_timedelta, seasonality_timedelta)
+    seasonality_dateoffset = (
+        pd.DateOffset(**DATE_OFFSET_KEYWORD_MAP[unit]) * seasonal_period
+    )
 
-    # Last cutoff is "latest date in data - horizon_timedelta" date
-    cutoff = df["ds"].max() - horizon_timedelta
+    # We can not compare DateOffset directly, so we add to start time and compare.
+    initial = seasonality_dateoffset
+    if (
+        df["ds"].min() + 3 * horizon_dateoffset
+        > df["ds"].min() + seasonality_dateoffset
+    ):
+        initial = 3 * horizon_dateoffset
+
+    # Last cutoff is "latest date in data - horizon_dateoffset" date
+    cutoff = df["ds"].max() - horizon_dateoffset
     if cutoff < df["ds"].min():
         raise ValueError("Less data than horizon.")
     result = [cutoff]
     while result[-1] >= min(df["ds"]) + initial and len(result) <= num_folds:
-        cutoff -= period_timedelta
-        # If data does not exist in data range (cutoff, cutoff + horizon_timedelta]
-        # Next cutoff point is "last date before cutoff in data - horizon_timedelta"
-        if (
-            not (((df["ds"] > cutoff) & (df["ds"] <= cutoff + horizon_timedelta)).any())
-            and cutoff > df["ds"].min()
+        cutoff -= period_dateoffset
+        # If data does not exist in data range (cutoff, cutoff + horizon_dateoffset]
+        if not (
+            ((df["ds"] > cutoff) & (df["ds"] <= cutoff + horizon_dateoffset)).any()
         ):
-            closest_date = df[df["ds"] <= cutoff].max()["ds"]
-            cutoff = closest_date - horizon_timedelta
+            # Next cutoff point is "last date before cutoff in data - horizon_dateoffset"
+            if cutoff > df["ds"].min():
+                closest_date = df[df["ds"] <= cutoff].max()["ds"]
+                cutoff = closest_date - horizon_dateoffset
         # else no data left, leave cutoff as is, it will be dropped.
         result.append(cutoff)
     result = result[:-1]
@@ -126,3 +259,47 @@ def generate_cutoffs(
             "Less data than horizon after initial window. Make horizon shorter."
         )
     return list(reversed(result))
+
+
+def is_quaterly_alias(freq: str):
+    return freq in QUATERLY_OFFSET_ALIAS
+
+
+def is_frequency_consistency(
+    start_time: pd.Timestamp, end_time: pd.Timestamp, freq: str
+) -> bool:
+    """
+    Validate the periods given a start time, end time is consistent with given frequency.
+    We consider consistency as only integer frequencies between start and end time, e.g.
+    3 days for day, 10 hours for hour, but 2 day and 2 hours are not considered consistency
+    for day frequency.
+    :param start_time: A pandas timestamp.
+    :param end_time: A pandas timestamp.
+    :param freq: A string that is accepted by OFFSET_ALIAS_MAP, e.g. 'day',
+                'month' etc.
+    :return: A boolean indicate whether the time interval is
+             evenly divisible by the period.
+    """
+    periods = calculate_period_differences(start_time, end_time, freq)
+    diff = pd.to_datetime(end_time) - pd.DateOffset(
+        **DATE_OFFSET_KEYWORD_MAP[OFFSET_ALIAS_MAP[freq]]
+    ) * periods == pd.to_datetime(start_time)
+    return diff
+
+
+def calculate_period_differences(
+    start_time: pd.Timestamp, end_time: pd.Timestamp, freq: str
+) -> int:
+    """
+    Calculate the periods given a start time, end time and period frequency.
+    :param start_time: A pandas timestamp.
+    :param end_time: A pandas timestamp.
+    :param freq: A string that is accepted by OFFSET_ALIAS_MAP, e.g. 'day',
+                'month' etc.
+    :return: A pd.Series indicates the round-down integer period
+             calculated.
+    """
+    start_time = pd.to_datetime(start_time)
+    end_time = pd.to_datetime(end_time)
+    freq_alias = PERIOD_ALIAS_MAP[OFFSET_ALIAS_MAP[freq]]
+    return (end_time.to_period(freq_alias) - start_time.to_period(freq_alias)).n
