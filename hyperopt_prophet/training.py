@@ -173,16 +173,16 @@ class ProphetHyperOptTrainer:
             regressors=self.training_params.regressors,
         )
 
-        # prediction = prophet_model.predict_timeseries(
-        #     horizon=self.training_params.horizon, include_history=True
-        # )
+        prediction = prophet_model.predict_timeseries(
+            horizon=self.training_params.horizon, include_history=True
+        )
 
         result["run_id"] = "local_training"
 
         # calculate the duration of the run in seconds
         result["training_duration"] = time() - run_start_time
 
-        return prophet_model, model_json, result, avg_metrics  # , prediction
+        return prophet_model, model_json, result, avg_metrics, prediction
 
     def train_with_mlflow(self, mlflow_run):
         prophet_model, model_json, result, avg_metrics, prediction = self.training()

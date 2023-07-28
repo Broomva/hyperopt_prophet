@@ -41,10 +41,7 @@ model = ProphetHyperOptTrainer(
     training_data=df, training_params=model_params
 )
 # %%
-prophet_model, model_json, result, avg_metrics = model.fit()
-
-# %%
-prediction = prophet_model.predict_timeseries(horizon=365, include_history=True)
+prophet_model, model_json, result, avg_metrics, prediction = model.fit()
 
 # %%
 fig = get_plotly_forecast(prophet_model.model(), prediction)
