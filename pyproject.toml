@@ -13,6 +13,7 @@ packages = [
 [tool.poetry.dependencies]
 python = "^3.8"
 prophet = "1.1.1"
+holidays = "0.24"
 pandas = "^2.0.3"
 pydantic = "^2.1.0"
 hyperopt = "0.2.7"
