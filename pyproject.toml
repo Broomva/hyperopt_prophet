@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "hyperopt-prophet"
-version = "0.2.0"
+version = "0.2.1"
 description = "Integration of prophet forecasting with hyperopt, mlflow"
 authors = ["Carlos D. Escobar-Valbuena <carlosdavidescobar@gmail.com>"]
 license = "MIT"

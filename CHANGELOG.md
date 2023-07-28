@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/Broomva/hyperopt_prophet/compare/v0.2.0...v0.2.1) (2023-07-28)
+
+
+### Bug Fixes
+
+* added modules imports ([3fd7813](https://github.com/Broomva/hyperopt_prophet/commit/3fd7813885368a44128d4a72e8ed7a9ad6f025c8))
+
 ## [0.2.0](https://github.com/Broomva/hyperopt_prophet/compare/v0.1.6...v0.2.0) (2023-07-27)
 
 
