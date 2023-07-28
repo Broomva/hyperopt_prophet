@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3](https://github.com/Broomva/hyperopt_prophet/compare/v0.2.2...v0.2.3) (2023-07-28)
+
+
+### Bug Fixes
+
+* added prediction to the returned values ([25d55b8](https://github.com/Broomva/hyperopt_prophet/commit/25d55b839718ea9529a4b49a14dbf9a4c54bfd6c))
+
 ## [0.2.2](https://github.com/Broomva/hyperopt_prophet/compare/v0.2.1...v0.2.2) (2023-07-28)
 
 
