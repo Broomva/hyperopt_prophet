@@ -28,10 +28,10 @@ from .utils import (
 )
 
 import logging
-
-logging.getLogger("prophet").setLevel(logging.WARNING)
-logging.getLogger("cmdstanpy").setLevel(logging.WARNING)
-
+logger = logging.getLogger('cmdstanpy')
+logger.addHandler(logging.NullHandler())
+logger.propagate = False
+logger.setLevel(logging.CRITICAL)
 
 class ForecastModel(ABC, mlflow.pyfunc.PythonModel):
     @abstractmethod

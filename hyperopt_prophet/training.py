@@ -14,9 +14,10 @@ from .model import ProphetHyperoptEstimator, mlflow_prophet_log_model, ProphetMo
 from .utils import get_plotly_forecast, plotly_fig2pil
 
 import logging
-
-logging.getLogger("prophet").setLevel(logging.WARNING)
-logging.getLogger("cmdstanpy").setLevel(logging.WARNING)
+logger = logging.getLogger('cmdstanpy')
+logger.addHandler(logging.NullHandler())
+logger.propagate = False
+logger.setLevel(logging.CRITICAL)
 
 
 warnings.filterwarnings("ignore")
