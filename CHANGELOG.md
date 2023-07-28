@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.4](https://github.com/Broomva/hyperopt_prophet/compare/v0.2.3...v0.2.4) (2023-07-28)
+
+
+### Bug Fixes
+
+* added logging options to avoid pystan info ([a9345a3](https://github.com/Broomva/hyperopt_prophet/commit/a9345a3bba12547712a05b9a987041ec3152bae8))
+
 ## [0.2.3](https://github.com/Broomva/hyperopt_prophet/compare/v0.2.2...v0.2.3) (2023-07-28)
 
 
