@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/Broomva/hyperopt_prophet/compare/v0.2.1...v0.2.2) (2023-07-28)
+
+
+### Bug Fixes
+
+* added holidays==0.24.0 to pyproject.toml ([146622f](https://github.com/Broomva/hyperopt_prophet/commit/146622fee3594275c84a5c8cf075aa3637752b31))
+
 ## [0.2.1](https://github.com/Broomva/hyperopt_prophet/compare/v0.2.0...v0.2.1) (2023-07-28)
 
 
